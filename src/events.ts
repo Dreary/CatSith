@@ -1,11 +1,14 @@
 import { app, dialog, ipcMain } from "electron";
 import { M2dReader } from "maple2-file";
-import { PackFileEntry } from "maple2-file/dist/crypto/common/PackFileEntry";
 
 let m2dReader: M2dReader;
 
 ipcMain.handle("get-app-version", () => {
   return app.getVersion();
+});
+
+ipcMain.handle("exit-app", () => {
+  app.exit();
 });
 
 ipcMain.handle("show-open-dialog", async (event, options) => {
@@ -25,20 +28,31 @@ ipcMain.handle(
       throw new Error("M2D reader not initialized");
     }
 
-    return m2dReader.getBytes(m2dReader.files[packFileEntryIndex]);
+    return m2dReader.getBytes(m2dReader.files[packFileEntryIndex - 1]);
   },
 );
 
 ipcMain.handle(
   "get-xml-pack-file-entry",
   async (event, packFileEntryIndex: number) => {
-    console.log("🚀 ~ ipcMain.handle ~ packFileEntry:", packFileEntryIndex);
     if (!m2dReader) {
       throw new Error("M2D reader not initialized");
     }
 
     try {
-      return m2dReader.getString(m2dReader.files[packFileEntryIndex - 1]);
+      const data = m2dReader.getBytes(m2dReader.files[packFileEntryIndex - 1]);
+
+      if (!data) {
+        throw new Error("Data not found");
+      }
+
+      let decoder = new TextDecoder("utf-8");
+      const text = decoder.decode(data.getBuffer());
+      if (text.includes('encoding="euc-kr"')) {
+        decoder = new TextDecoder("euc-kr");
+        return decoder.decode(data.getBuffer());
+      }
+      return text;
     } catch (error) {
       console.error("Error reading XML", error);
     }
