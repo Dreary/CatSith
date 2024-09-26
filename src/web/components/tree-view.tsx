@@ -138,7 +138,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
       <div ref={ref} role="tree" className={className} {...props}>
         <ul>
           {data.map((item) => (
-            <li key={item.id}>
+            <li key={`${item.id}-${item.name}`}>
               {item.children ? (
                 <TreeNode
                   item={item}
