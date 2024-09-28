@@ -30,6 +30,12 @@ const createWindow = () => {
     minWidth: 1024,
     minHeight: 680,
     autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#030711',
+      symbolColor: '#fff',
+      height: 39
+    },
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       // nodeIntegrationInWorker: true,

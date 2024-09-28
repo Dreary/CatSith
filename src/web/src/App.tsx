@@ -1,11 +1,10 @@
-import { Button, buttonVariants } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
-import { Editor, loader } from "@monaco-editor/react";
 import { Search } from "lucide-react";
 import { PackFileEntry } from "maple2-file/dist/crypto/common/PackFileEntry";
 import { useCallback, useEffect, useState } from "react";
 import { NodeApi, Tree } from "react-arborist";
 import useResizeObserver from "use-resize-observer";
+import { Monaco } from "@monaco-editor/react";
 
 // #region Monaco Editor
 // @ts-expect-error
@@ -34,6 +33,9 @@ import {
 } from "@/web/components/ui/resizable";
 import { ImperativePanelHandle } from "react-resizable-panels";
 import { BinaryBuffer } from "maple2-file/dist/crypto/common/BinaryBuffer";
+import { editor } from "monaco-editor";
+import { EditorPanel } from "./EditorPanel";
+import { AppProvider, useAppState } from "./AppState";
 
 self.MonacoEnvironment = {
   getWorker(_, label: string) {
@@ -68,12 +70,11 @@ function App() {
   const [appVersion, setAppVersion] = useState<string>("1.0.0");
 
   const [packFileEntries, setPackFileEntries] = useState<PackFileEntry[]>([]);
-  const [selectedFile, setSelectedFile] = useState<
-    string | BinaryBuffer | null
-  >(null);
   const [treeData, setTreeData] = useState<TreeDataItem[]>([]);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const { addOpenFile } = useAppState();
 
   useEffect(() => {
     (async () => {
@@ -84,7 +85,7 @@ function App() {
 
   const handleNodeSelect = useCallback(
     async (node: NodeApi<TreeDataItem>[]) => {
-      if (node?.[0].children) {
+      if (node?.[0]?.children) {
         return;
       }
       const id = node?.[0]?.id;
@@ -98,7 +99,13 @@ function App() {
       }
       const xml = await window.electron.getXmlPackFileEntry(fileEntry.index);
 
-      setSelectedFile(xml);
+      addOpenFile({
+        index: fileEntry.index,
+        contentType: "text",
+        name: fileEntry.name,
+        value: xml,
+        changed: false,
+      });
     },
     [packFileEntries],
   );
@@ -177,6 +184,13 @@ function App() {
               <MenubarItem>v{appVersion}</MenubarItem>
             </MenubarContent>
           </MenubarMenu>
+          <div
+            className="h-full w-full flex-grow"
+            style={{
+              //@ts-expect-error
+              WebkitAppRegion: "drag",
+            }}
+          />
         </Menubar>
 
         <ResizablePanelGroup
@@ -232,27 +246,7 @@ function App() {
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel>
-            {selectedFile != null ? (
-              typeof selectedFile === "string" ? (
-                <Editor
-                  className="h-full w-full"
-                  defaultLanguage="xml"
-                  theme="vs-dark"
-                  value={selectedFile}
-                />
-              ) : (
-                <div className="relative h-full w-full">
-                  <img
-                  // src={`/api/images/${selectedFile.id}`}
-                  // alt={selectedFile.name}
-                  />
-                </div>
-              )
-            ) : (
-              <div className="flex h-full items-center justify-center text-gray-500">
-                Select a file to view its content
-              </div>
-            )}
+            <EditorPanel />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

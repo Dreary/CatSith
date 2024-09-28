@@ -1,5 +1,8 @@
 import { app, dialog, ipcMain } from "electron";
-import { M2dReader } from "maple2-file";
+import { M2dReader, M2dWriter } from "maple2-file";
+import { BinaryBuffer } from "maple2-file/dist/crypto/common/BinaryBuffer";
+
+import logger from "electron-log/main";
 
 let m2dReader: M2dReader;
 
@@ -58,3 +61,36 @@ ipcMain.handle(
     }
   },
 );
+
+ipcMain.handle(
+  "save-xml-pack-file-entry",
+  async (event, packFileEntryIndex: number, xml: string) => {
+    const packFileEntry = m2dReader.files.find(
+      (entry) => entry.index === packFileEntryIndex,
+    );
+    if (!packFileEntry) {
+      return [false, "Pack file entry not found"];
+    }
+
+    const xmlBytes = BinaryBuffer.fromBuffer(Buffer.from(xml, "utf-8"));
+    packFileEntry.data = xmlBytes;
+    packFileEntry.changed = true;
+  },
+);
+
+ipcMain.handle("save-m2d", async (event, filePath?: string) => {
+  try {
+    // Note: the writer creates a copy of the read buffer & file array. Might eat a lot of memory
+    const writer = M2dWriter.fromReader(m2dReader);
+
+    if (filePath !== writer.filePath) {
+      writer.filePath = filePath;
+    }
+
+    writer.save();
+    return [true, "Saved M2D"];
+  } catch (error) {
+    logger.error(error);
+    return [false, error.message];
+  }
+});
