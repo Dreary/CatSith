@@ -36,6 +36,9 @@ import { BinaryBuffer } from "maple2-file/dist/crypto/common/BinaryBuffer";
 import { editor } from "monaco-editor";
 import { EditorPanel } from "./EditorPanel";
 import { AppProvider, useAppState } from "./AppState";
+import XmlIcon from "@/web/assets/Icons/xml";
+import ImageIcon from "@/web/assets/Icons/image";
+import { isXml } from "@/web/lib/utils";
 
 self.MonacoEnvironment = {
   getWorker(_, label: string) {
@@ -74,7 +77,7 @@ function App() {
 
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const { addOpenFile } = useAppState();
+  const { addOpenFile, closeAllTabs, currentSelectedTab } = useAppState();
 
   useEffect(() => {
     (async () => {
@@ -97,13 +100,24 @@ function App() {
         console.error("File entry not found");
         return;
       }
-      const xml = await window.electron.getXmlPackFileEntry(fileEntry.index);
+      if (isXml(fileEntry.name)) {
+        const xml = await window.electron.getXmlPackFileEntry(fileEntry.index);
+
+        addOpenFile({
+          index: fileEntry.index,
+          name: fileEntry.name,
+          value: xml,
+          changed: false,
+        });
+        return;
+      }
+
+      const data = await window.electron.getDataPackFileEntry(fileEntry.index);
 
       addOpenFile({
         index: fileEntry.index,
-        contentType: "text",
         name: fileEntry.name,
-        value: xml,
+        value: data,
         changed: false,
       });
     },
@@ -119,6 +133,7 @@ function App() {
     const packFileEntries = await window.electron.readerM2d(
       result.filePaths[0],
     );
+    closeAllTabs();
     setPackFileEntries([]);
     setTreeData([]);
     setPackFileEntries(packFileEntries);
@@ -150,8 +165,38 @@ function App() {
       });
     });
     treeData.sort((a, b) => a.name.localeCompare(b.name));
+
     setTreeData(treeData);
   };
+
+  function getNodeIcon(node: NodeApi<TreeDataItem>) {
+    if (node.isLeaf) {
+      // get icons from here: https://github.com/material-extensions/vscode-material-icon-theme/tree/main/icons
+      switch (node.data.name.split(".").pop()) {
+        case "xml":
+        case "xblock":
+          return <XmlIcon className="h-4 w-4" />;
+        case "png":
+        case "jpg":
+        case "jpeg":
+        case "gif":
+        case "bmp":
+        case "webp":
+        case "svg":
+        case "ico":
+        case "dds":
+          return <ImageIcon className="h-4 w-4" />;
+        default:
+          return "🍁";
+      }
+    }
+
+    if (node.isClosed) {
+      return "🗀";
+    } else {
+      return "🗁";
+    }
+  }
 
   const { ref, width, height } = useResizeObserver<HTMLDivElement>();
 
@@ -164,6 +209,7 @@ function App() {
               href="https://github.com/AngeloTadeucci/CatSith"
               target="_blank"
               className="mx-2"
+              draggable="false"
             >
               CatSith
             </a>
@@ -201,8 +247,8 @@ function App() {
         >
           <ResizablePanel minSize={25} maxSize={70}>
             {treeData.length > 0 ? (
-              <div className="flex h-full flex-col">
-                <div className="border-b p-2">
+              <div className="ml-2 flex h-full flex-col pt-2">
+                <div className="pb-2 pr-2">
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 transform text-gray-400" />
                     <Input
@@ -235,7 +281,37 @@ function App() {
                         .toLowerCase()
                         .includes(searchQuery.toLowerCase())
                     }
-                  />
+                  >
+                    {({ node, style }) => {
+                      const nodeIsSelected =
+                        currentSelectedTab?.name ===
+                          packFileEntries[+node.data.id.split("-")[0] - 1]
+                            .name && node.isLeaf;
+
+                      return (
+                        <div
+                          style={style}
+                          className={`flex cursor-pointer select-none items-center ${
+                            nodeIsSelected
+                              ? "bg-gray-800"
+                              : "hover:bg-gray-800 hover:bg-opacity-40"
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            node.toggle();
+                            node.select();
+                          }}
+                        >
+                          <div className="flex-shrink-0">
+                            {getNodeIcon(node)}
+                          </div>
+                          <span className="ml-1 overflow-hidden overflow-ellipsis whitespace-nowrap">
+                            {node.data.name}
+                          </span>
+                        </div>
+                      );
+                    }}
+                  </Tree>
                 </div>
               </div>
             ) : (

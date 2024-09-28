@@ -1,4 +1,3 @@
-import { editor } from "monaco-editor";
 import {
   createContext,
   ReactNode,
@@ -9,9 +8,8 @@ import {
 
 export interface FileTab {
   index: number;
-  contentType: "text" | "image";
   name: string;
-  value: string;
+  value: string | Buffer;
   changed: boolean;
 }
 
@@ -22,6 +20,7 @@ export interface AppStateType {
   setCurrentSelectedTab: React.Dispatch<React.SetStateAction<FileTab>>;
   addOpenFile: (file: FileTab) => void;
   removeOpenFile: (index: number) => void;
+  closeAllTabs: () => void;
 }
 
 // Create the context
@@ -57,6 +56,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     });
   };
 
+  const closeAllTabs = useCallback(() => {
+    setOpenedTabs([]);
+    setCurrentSelectedTab(null);
+  }, []);
+
   return (
     <AppState.Provider
       value={{
@@ -66,6 +70,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         setCurrentSelectedTab,
         addOpenFile,
         removeOpenFile,
+        closeAllTabs,
       }}
     >
       {children}

@@ -2,7 +2,7 @@ import { Editor, Monaco } from "@monaco-editor/react";
 import { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef } from "react";
 import { useAppState } from "./AppState";
-import { edit } from "react-arborist/dist/module/state/edit-slice";
+import { isImage, isXml } from "@/web/lib/utils";
 
 export const EditorPanel = () => {
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
@@ -78,26 +78,27 @@ export const EditorPanel = () => {
           })}
         </div>
       )}
-      <Editor
-        className={`h-full w-full ${!currentSelectedTab || currentSelectedTab.contentType !== "text" ? "hidden" : ""}`}
-        theme="vs-dark"
-        path={currentSelectedTab?.name}
-        defaultLanguage="xml"
-        defaultValue={currentSelectedTab?.value}
-        onMount={handleEditorDidMount}
-        onChange={handleEditorChange}
-      />
-      {!!currentSelectedTab && currentSelectedTab.contentType === "image" && (
-        <div className="h-full w-full">
+      {!!currentSelectedTab && isXml(currentSelectedTab.name) && (
+        <Editor
+          className={`h-full w-full`}
+          theme="vs-dark"
+          path={currentSelectedTab?.name}
+          defaultLanguage="xml"
+          defaultValue={currentSelectedTab?.value as string}
+          onMount={handleEditorDidMount}
+          onChange={handleEditorChange}
+        />
+      )}
+      {!!currentSelectedTab && isImage(currentSelectedTab.name) && (
+        <div className="flex h-full w-full items-center justify-center">
           <img
-            className="h-full w-full"
-            src={`/api/images/${currentSelectedTab.index}`}
+            src={`data:image/png;base64,${btoa(String.fromCharCode(...(currentSelectedTab.value as Buffer)))}`}
             alt={currentSelectedTab.name}
           />
         </div>
       )}
       {!currentSelectedTab && (
-        <div className="flex h-full items-center justify-center absolute top-0 left-0 right-0 text-gray-500">
+        <div className="absolute left-0 right-0 top-0 flex h-full items-center justify-center text-gray-500">
           Select a file to view its content
         </div>
       )}

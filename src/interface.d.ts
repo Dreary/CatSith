@@ -1,3 +1,4 @@
+import { BinaryBuffer } from "maple2-file/dist/crypto/common/BinaryBuffer";
 import { PackFileEntry } from "maple2-file/dist/crypto/common/PackFileEntry";
 
 export interface IElectronAPI {
@@ -7,7 +8,7 @@ export interface IElectronAPI {
     options: Electron.OpenDialogOptions,
   ) => Promise<Electron.OpenDialogReturnValue>;
   readerM2d: (filePath: string) => Promise<PackFileEntry[]>;
-  getDataPackFileEntry: (packFileEntry: number) => Promise<BynaryBuffer>;
+  getDataPackFileEntry: (packFileEntry: number) => Promise<Buffer>;
   getXmlPackFileEntry: (packFileEntry: number) => Promise<string>;
 }
 

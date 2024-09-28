@@ -26,12 +26,14 @@ ipcMain.handle("reader-m2d", async (event, filePath) => {
 
 ipcMain.handle(
   "get-data-pack-file-entry",
-  async (event, packFileEntryIndex: number) => {
+  async (event, packFileEntryIndex: number): Promise<Buffer> => {
     if (!m2dReader) {
       throw new Error("M2D reader not initialized");
     }
 
-    return m2dReader.getBytes(m2dReader.files[packFileEntryIndex - 1]);
+    return m2dReader
+      .getBytes(m2dReader.files[packFileEntryIndex - 1])
+      .getBuffer();
   },
 );
 
