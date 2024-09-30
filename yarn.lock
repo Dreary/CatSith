@@ -4391,10 +4391,10 @@ map-age-cleaner@^0.1.1:
   dependencies:
     p-defer "^1.0.0"
 
-maple2-file@1.0.6:
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/maple2-file/-/maple2-file-1.0.6.tgz#df361032d4290d0000d8069e35beb9ffde5ec817"
-  integrity sha512-2TBNdKGa4RanUUFrie+z9tsFVhVfnurSE30X7mLawQSeVpd3GCmtS3vkH8kVAlm5JW7TgwY0BwVyhsa5rD7Wgw==
+maple2-file@1.0.7:
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/maple2-file/-/maple2-file-1.0.7.tgz#f6f26d893bee592816a819bbf3ce2033536525fb"
+  integrity sha512-aIPXeDpKGQdA8MTXwsMS59QxqYH3RotTWavG70+U7KErjJZn3OcHXhiIkr24rPHgJuuaDsd3C7I0yz0KdSXruw==
   dependencies:
     fast-xml-parser "^4.5.0"
 
