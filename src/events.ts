@@ -48,7 +48,7 @@ ipcMain.handle("save-m2d", async (event, filePath: string) => {
 
 ipcMain.handle(
   "get-data-pack-file-entry",
-  async (event, packFileEntryIndex: number): Promise<Buffer> => {
+  async (event, packFileEntryIndex: number): Promise<string> => {
     if (!m2dReader) {
       throw new Error("M2D reader not initialized");
     }
@@ -63,7 +63,8 @@ ipcMain.handle(
     } else {
       data = m2dReader.getBytes(packEntry);
     }
-    return data.getBuffer();
+
+    return data.getBuffer().toString("base64");
   },
 );
 

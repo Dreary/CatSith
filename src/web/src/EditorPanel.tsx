@@ -115,30 +115,30 @@ export const EditorPanel = () => {
       }
 
       if (isImage(currentSelectedTab.name)) {
-        const result = await window.electron.saveDataPackFileEntry(
-          currentSelectedTab.index,
-          currentSelectedTab.value as Buffer,
-        );
+        // const result = await window.electron.saveDataPackFileEntry(
+        //   currentSelectedTab.index,
+        //   currentSelectedTab.value as Buffer, // TODO: fix this
+        // );
 
-        if (result[0]) {
-          setOpenedTabs((prevTabs) =>
-            prevTabs.map((tab) =>
-              tab.index === currentSelectedTab.index
-                ? { ...tab, changed: false }
-                : tab,
-            ),
-          );
-          toast({
-            title: `${currentSelectedTab.name.split("/").pop()} saved`,
-            duration: 2000,
-          });
-        } else {
-          toast({
-            title: "Error saving file",
-            description: result[1],
-            duration: 5000,
-          });
-        }
+        // if (result[0]) {
+        //   setOpenedTabs((prevTabs) =>
+        //     prevTabs.map((tab) =>
+        //       tab.index === currentSelectedTab.index
+        //         ? { ...tab, changed: false }
+        //         : tab,
+        //     ),
+        //   );
+        //   toast({
+        //     title: `${currentSelectedTab.name.split("/").pop()} saved`,
+        //     duration: 2000,
+        //   });
+        // } else {
+        //   toast({
+        //     title: "Error saving file",
+        //     description: result[1],
+        //     duration: 5000,
+        //   });
+        // }
 
         return;
       }
@@ -222,7 +222,7 @@ export const EditorPanel = () => {
       {!!currentSelectedTab && isImage(currentSelectedTab.name) && (
         <div className="flex h-full w-full items-center justify-center">
           <img
-            src={`data:image/png;base64,${btoa(String.fromCharCode(...(currentSelectedTab.value as Buffer)))}`}
+            src={`data:image/png;base64,${currentSelectedTab.value}`}
             alt={currentSelectedTab.name}
           />
         </div>

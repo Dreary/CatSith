@@ -9,7 +9,7 @@ import {
 export interface FileTab {
   index: number;
   name: string;
-  value: string | Buffer;
+  value: string;
   changed: boolean;
 }
 

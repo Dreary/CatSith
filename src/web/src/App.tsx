@@ -37,6 +37,14 @@ import { useToast } from "@/web/hooks/use-toast";
 import { isImage, isXml } from "@/web/lib/utils";
 import { useAppState } from "./AppState";
 import { EditorPanel } from "./EditorPanel";
+import {
+  Breadcrumb,
+  BreadcrumbEllipsis,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/web/components/ui/breadcrumb";
 
 self.MonacoEnvironment = {
   getWorker(_, label: string) {
@@ -72,13 +80,20 @@ function App() {
 
   const [appVersion, setAppVersion] = useState<string>("1.0.0");
 
+  const [fileName, setFileName] = useState<string>("");
   const [packFileEntries, setPackFileEntries] = useState<PackFileEntry[]>([]);
   const [treeData, setTreeData] = useState<TreeDataItem[]>([]);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const { addOpenFile, closeAllTabs, currentSelectedTab, setOpenedTabs } =
-    useAppState();
+  const {
+    addOpenFile,
+    closeAllTabs,
+    currentSelectedTab,
+    setOpenedTabs,
+    openedTabs,
+    setCurrentSelectedTab,
+  } = useAppState();
 
   const [confirmDialogAction, setConfirmDialogAction] =
     useState<() => void | null>(null);
@@ -108,6 +123,14 @@ function App() {
         console.error("File entry not found");
         return;
       }
+
+      // check if file is already open
+      const tabExists = openedTabs.find((tab) => tab.index === fileEntry.index);
+      if (tabExists) {
+        setCurrentSelectedTab(tabExists);
+        return;
+      }
+
       if (isXml(fileEntry.name)) {
         const xml = await window.electron.getXmlPackFileEntry(fileEntry.index);
 
@@ -129,7 +152,7 @@ function App() {
         changed: false,
       });
     },
-    [packFileEntries],
+    [packFileEntries, openedTabs],
   );
 
   async function loadFile() {
@@ -142,45 +165,10 @@ function App() {
       return;
     }
 
+    setFileName(loadFile.filePaths[0]);
     const packFiles = await window.electron.openM2d(loadFile.filePaths[0]);
 
-    // reset state
-    closeAllTabs();
-    setPackFileEntries([]);
-    setTreeData([]);
-    treeRef.current?.closeAll();
-
-    setPackFileEntries(packFiles);
-
-    // files have folders names as keys for example "achieve/achieve.xml" we need to convert it to a tree structure
-    const treeData: TreeDataItem[] = [];
-    packFiles.forEach((entry) => {
-      const path = entry.name.split("/");
-      let parent = treeData;
-      path.forEach((folderName, index) => {
-        const isFile = index === path.length - 1 && folderName.includes(".");
-        const existingFolder = parent.find(
-          (folder) => folder.name === folderName,
-        );
-        if (existingFolder) {
-          parent = existingFolder.children!;
-          return;
-        }
-
-        const newFolder: TreeDataItem = {
-          id: `${entry.index}-${folderName}`,
-          name: folderName,
-          children: isFile ? undefined : ([] as TreeDataItem[]),
-        };
-        parent.push(newFolder);
-        if (!isFile) {
-          parent = newFolder.children!;
-        }
-      });
-    });
-    treeData.sort((a, b) => a.name.localeCompare(b.name));
-
-    setTreeData(treeData);
+    updateState(packFiles);
   }
 
   const onLoadFile = async () => {
@@ -226,7 +214,23 @@ function App() {
       title: `Saved successfully in ${result[1]}`,
       duration: 2000,
     });
+
+    // wait 1s
+    await wait(1000);
+
+    setFileName(filePath);
+    const packFiles = await window.electron.openM2d(filePath);
+    updateState(packFiles);
+
+    toast({
+      title: "New file loaded",
+      duration: 2000,
+    });
   };
+
+  // wait function
+  const wait = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
   const onSaveTab = async () => {
     if (!currentSelectedTab) {
@@ -270,30 +274,30 @@ function App() {
     }
 
     if (isImage(currentSelectedTab.name)) {
-      const result = await window.electron.saveDataPackFileEntry(
-        currentSelectedTab.index,
-        currentSelectedTab.value as Buffer,
-      );
+      // const result = await window.electron.saveDataPackFileEntry(
+      //   currentSelectedTab.index,
+      //   currentSelectedTab.value, //TODO: fix this
+      // );
 
-      if (result[0]) {
-        setOpenedTabs((prevTabs) =>
-          prevTabs.map((tab) =>
-            tab.index === currentSelectedTab.index
-              ? { ...tab, changed: false }
-              : tab,
-          ),
-        );
-        toast({
-          title: "File saved",
-          duration: 2000,
-        });
-      } else {
-        toast({
-          title: "Error saving file",
-          description: result[1],
-          duration: 5000,
-        });
-      }
+      // if (result[0]) {
+      //   setOpenedTabs((prevTabs) =>
+      //     prevTabs.map((tab) =>
+      //       tab.index === currentSelectedTab.index
+      //         ? { ...tab, changed: false }
+      //         : tab,
+      //     ),
+      //   );
+      //   toast({
+      //     title: "File saved",
+      //     duration: 2000,
+      //   });
+      // } else {
+      //   toast({
+      //     title: "Error saving file",
+      //     description: result[1],
+      //     duration: 5000,
+      //   });
+      // }
 
       return;
     }
@@ -308,12 +312,62 @@ function App() {
     return window.electron.exitApp();
   };
 
+  const saveShortcut = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "s" && e.ctrlKey) {
+        e.preventDefault();
+        onSaveTab();
+      }
+    },
+    [onSaveTab],
+  );
+
   useEffect(() => {
-    window.addEventListener("keydown", onSaveTab);
+    window.addEventListener("keydown", saveShortcut);
     return () => {
-      window.removeEventListener("keydown", onSaveTab);
+      window.removeEventListener("keydown", saveShortcut);
     };
-  }, [onSaveTab]);
+  }, [saveShortcut]);
+
+  function updateState(packFiles: PackFileEntry[]) {
+    // reset state
+    closeAllTabs();
+    setPackFileEntries([]);
+    setTreeData([]);
+    treeRef.current?.closeAll();
+
+    setPackFileEntries(packFiles);
+
+    // files have folders names as keys for example "achieve/achieve.xml" we need to convert it to a tree structure
+    const treeData: TreeDataItem[] = [];
+    packFiles.forEach((entry) => {
+      const path = entry.name.split("/");
+      let parent = treeData;
+      path.forEach((folderName, index) => {
+        const isFile = index === path.length - 1 && folderName.includes(".");
+        const existingFolder = parent.find(
+          (folder) => folder.name === folderName,
+        );
+        if (existingFolder) {
+          parent = existingFolder.children!;
+          return;
+        }
+
+        const newFolder: TreeDataItem = {
+          id: `${entry.index}-${folderName}`,
+          name: folderName,
+          children: isFile ? undefined : ([] as TreeDataItem[]),
+        };
+        parent.push(newFolder);
+        if (!isFile) {
+          parent = newFolder.children!;
+        }
+      });
+    });
+    treeData.sort((a, b) => a.name.localeCompare(b.name));
+
+    setTreeData(treeData);
+  }
 
   function getNodeIcon(node: NodeApi<TreeDataItem>) {
     if (node.isLeaf) {
@@ -415,6 +469,47 @@ function App() {
             {treeData.length > 0 ? (
               <div className="ml-2 flex h-full flex-col pt-2">
                 <div className="pb-2 pr-2">
+                  <Breadcrumb>
+                    <BreadcrumbList>
+                      {fileName.split("\\").map((part, index, arr) => {
+                        // show first two parts and last two parts, between them show ellipsis
+                        if (arr.length < 4) {
+                          return (
+                            <>
+                              <BreadcrumbItem key={`item-${index}`}>
+                                <BreadcrumbLink>{part}</BreadcrumbLink>
+                              </BreadcrumbItem>
+                              {index < arr.length - 1 && (
+                                <BreadcrumbSeparator
+                                  key={`separator-${index}`}
+                                />
+                              )}
+                            </>
+                          );
+                        } else if (index < 2 || index > arr.length - 3) {
+                          return (
+                            <>
+                              <BreadcrumbItem key={`item-${index}`}>
+                                <BreadcrumbLink>{part}</BreadcrumbLink>
+                              </BreadcrumbItem>
+                              {index < arr.length - 1 && (
+                                <BreadcrumbSeparator
+                                  key={`separator-${index}`}
+                                />
+                              )}
+                            </>
+                          );
+                        } else if (index === 2) {
+                          return (
+                            <>
+                              <BreadcrumbEllipsis key={`item-${index}`} />
+                              <BreadcrumbSeparator key={`separator-${index}`} />
+                            </>
+                          );
+                        }
+                      })}
+                    </BreadcrumbList>
+                  </Breadcrumb>
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 transform text-gray-400" />
                     <Input

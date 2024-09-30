@@ -14,7 +14,7 @@ export interface IElectronAPI {
   openM2d: (filePath: string) => Promise<PackFileEntry[]>;
   saveM2d: (filePath: string) => Promise<[boolean, string]>;
 
-  getDataPackFileEntry: (packFileEntry: number) => Promise<Buffer>;
+  getDataPackFileEntry: (packFileEntry: number) => Promise<string>;
   getXmlPackFileEntry: (packFileEntry: number) => Promise<string>;
 
   saveXmlPackFileEntry: (
