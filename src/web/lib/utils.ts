@@ -18,5 +18,5 @@ export const isTexture = (fileName: string) => {
 };
 
 export const isXml = (fileName: string) => {
-  return ["xml", "xblock"].includes(getExtension(fileName));
+  return ["xml", "xblock", "flat"].includes(getExtension(fileName));
 };

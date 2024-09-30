@@ -7,9 +7,26 @@ export interface IElectronAPI {
   showOpenDialog: (
     options: Electron.OpenDialogOptions,
   ) => Promise<Electron.OpenDialogReturnValue>;
-  readerM2d: (filePath: string) => Promise<PackFileEntry[]>;
+  showSaveDialog: (
+    options: Electron.SaveDialogOptions,
+  ) => Promise<Electron.SaveDialogReturnValue>;
+
+  openM2d: (filePath: string) => Promise<PackFileEntry[]>;
+  saveM2d: (filePath: string) => Promise<[boolean, string]>;
+
   getDataPackFileEntry: (packFileEntry: number) => Promise<Buffer>;
   getXmlPackFileEntry: (packFileEntry: number) => Promise<string>;
+
+  saveXmlPackFileEntry: (
+    packFileEntryIndex: number,
+    value: string,
+  ) => Promise<[boolean, string]>;
+  saveDataPackFileEntry: (
+    packFileEntryIndex: number,
+    value: Buffer,
+  ) => Promise<[boolean, string]>;
+
+  hasChangedFiles: () => Promise<boolean>;
 }
 
 declare global {

@@ -1,10 +1,9 @@
 import { Input } from "@/web/components/ui/input";
 import { Search } from "lucide-react";
 import { PackFileEntry } from "maple2-file/dist/crypto/common/PackFileEntry";
-import { useCallback, useEffect, useState } from "react";
-import { NodeApi, Tree } from "react-arborist";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { NodeApi, Tree, TreeApi } from "react-arborist";
 import useResizeObserver from "use-resize-observer";
-import { Monaco } from "@monaco-editor/react";
 
 // #region Monaco Editor
 // @ts-expect-error
@@ -17,6 +16,9 @@ import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 // @ts-expect-error
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import ImageIcon from "@/web/assets/Icons/image";
+import XmlIcon from "@/web/assets/Icons/xml";
+import ConfirmationDialog from "@/web/components/confirmation-dialog";
 import {
   Menubar,
   MenubarContent,
@@ -31,14 +33,10 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/web/components/ui/resizable";
-import { ImperativePanelHandle } from "react-resizable-panels";
-import { BinaryBuffer } from "maple2-file/dist/crypto/common/BinaryBuffer";
-import { editor } from "monaco-editor";
+import { useToast } from "@/web/hooks/use-toast";
+import { isImage, isXml } from "@/web/lib/utils";
+import { useAppState } from "./AppState";
 import { EditorPanel } from "./EditorPanel";
-import { AppProvider, useAppState } from "./AppState";
-import XmlIcon from "@/web/assets/Icons/xml";
-import ImageIcon from "@/web/assets/Icons/image";
-import { isXml } from "@/web/lib/utils";
 
 self.MonacoEnvironment = {
   getWorker(_, label: string) {
@@ -70,6 +68,8 @@ interface TreeDataItem {
 }
 
 function App() {
+  const { toast } = useToast();
+
   const [appVersion, setAppVersion] = useState<string>("1.0.0");
 
   const [packFileEntries, setPackFileEntries] = useState<PackFileEntry[]>([]);
@@ -77,7 +77,15 @@ function App() {
 
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const { addOpenFile, closeAllTabs, currentSelectedTab } = useAppState();
+  const { addOpenFile, closeAllTabs, currentSelectedTab, setOpenedTabs } =
+    useAppState();
+
+  const [confirmDialogAction, setConfirmDialogAction] =
+    useState<() => void | null>(null);
+
+  const { ref, width, height } = useResizeObserver<HTMLDivElement>();
+
+  const treeRef = useRef<TreeApi<TreeDataItem>>();
 
   useEffect(() => {
     (async () => {
@@ -124,23 +132,29 @@ function App() {
     [packFileEntries],
   );
 
-  const onLoadFile = async () => {
-    const result = await window.electron.showOpenDialog({
+  async function loadFile() {
+    const loadFile = await window.electron.showOpenDialog({
       properties: ["openFile"],
       filters: [{ name: "M2D", extensions: ["m2d"] }],
     });
 
-    const packFileEntries = await window.electron.readerM2d(
-      result.filePaths[0],
-    );
+    if (loadFile.canceled) {
+      return;
+    }
+
+    const packFiles = await window.electron.openM2d(loadFile.filePaths[0]);
+
+    // reset state
     closeAllTabs();
     setPackFileEntries([]);
     setTreeData([]);
-    setPackFileEntries(packFileEntries);
+    treeRef.current?.closeAll();
+
+    setPackFileEntries(packFiles);
 
     // files have folders names as keys for example "achieve/achieve.xml" we need to convert it to a tree structure
     const treeData: TreeDataItem[] = [];
-    packFileEntries.forEach((entry) => {
+    packFiles.forEach((entry) => {
       const path = entry.name.split("/");
       let parent = treeData;
       path.forEach((folderName, index) => {
@@ -167,7 +181,139 @@ function App() {
     treeData.sort((a, b) => a.name.localeCompare(b.name));
 
     setTreeData(treeData);
+  }
+
+  const onLoadFile = async () => {
+    const hasChangedFiles = await window.electron.hasChangedFiles();
+    if (hasChangedFiles) {
+      setConfirmDialogAction(() => loadFile);
+      return;
+    }
+
+    await loadFile();
   };
+
+  const onSaveFile = async () => {
+    const hasChangedFiles = await window.electron.hasChangedFiles();
+    if (!hasChangedFiles) {
+      toast({
+        title: "No changes to save",
+        duration: 2000,
+      });
+      return;
+    }
+
+    const savePath = await window.electron.showSaveDialog({
+      filters: [{ name: "M2D", extensions: ["m2d"] }],
+    });
+
+    if (savePath.canceled) {
+      return;
+    }
+
+    const filePath = savePath.filePath;
+    const result = await window.electron.saveM2d(filePath);
+    if (!result[0]) {
+      toast({
+        title: "Error saving file",
+        description: result[1],
+        duration: 5000,
+      });
+      return;
+    }
+
+    toast({
+      title: `Saved successfully in ${result[1]}`,
+      duration: 2000,
+    });
+  };
+
+  const onSaveTab = async () => {
+    if (!currentSelectedTab) {
+      console.error("No tab selected");
+      return;
+    }
+
+    if (!currentSelectedTab.changed) {
+      console.error("No changes to save");
+      return;
+    }
+
+    if (isXml(currentSelectedTab.name)) {
+      const result = await window.electron.saveXmlPackFileEntry(
+        currentSelectedTab.index,
+        currentSelectedTab.value as string,
+      );
+
+      if (result[0]) {
+        setOpenedTabs((prevTabs) =>
+          prevTabs.map((tab) =>
+            tab.index === currentSelectedTab.index
+              ? { ...tab, changed: false }
+              : tab,
+          ),
+        );
+
+        toast({
+          title: `${currentSelectedTab.name.split("/").pop()} saved`,
+          duration: 2000,
+        });
+      } else {
+        toast({
+          title: "Error saving file",
+          description: result[1],
+          duration: 5000,
+        });
+      }
+
+      return;
+    }
+
+    if (isImage(currentSelectedTab.name)) {
+      const result = await window.electron.saveDataPackFileEntry(
+        currentSelectedTab.index,
+        currentSelectedTab.value as Buffer,
+      );
+
+      if (result[0]) {
+        setOpenedTabs((prevTabs) =>
+          prevTabs.map((tab) =>
+            tab.index === currentSelectedTab.index
+              ? { ...tab, changed: false }
+              : tab,
+          ),
+        );
+        toast({
+          title: "File saved",
+          duration: 2000,
+        });
+      } else {
+        toast({
+          title: "Error saving file",
+          description: result[1],
+          duration: 5000,
+        });
+      }
+
+      return;
+    }
+  };
+
+  const onExit = async () => {
+    const changedFiles = await window.electron.hasChangedFiles();
+    if (changedFiles) {
+      return setConfirmDialogAction(() => window.electron.exitApp);
+    }
+
+    return window.electron.exitApp();
+  };
+
+  useEffect(() => {
+    window.addEventListener("keydown", onSaveTab);
+    return () => {
+      window.removeEventListener("keydown", onSaveTab);
+    };
+  }, [onSaveTab]);
 
   function getNodeIcon(node: NodeApi<TreeDataItem>) {
     if (node.isLeaf) {
@@ -175,6 +321,7 @@ function App() {
       switch (node.data.name.split(".").pop()) {
         case "xml":
         case "xblock":
+        case "flat":
           return <XmlIcon className="h-4 w-4" />;
         case "png":
         case "jpg":
@@ -198,10 +345,18 @@ function App() {
     }
   }
 
-  const { ref, width, height } = useResizeObserver<HTMLDivElement>();
-
   return (
     <div className="relative h-screen">
+      <ConfirmationDialog
+        isConfirmDialogOpen={confirmDialogAction !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmDialogAction(null);
+          }
+        }}
+        onCancel={() => setConfirmDialogAction(null)}
+        onConfirm={confirmDialogAction}
+      />
       <div className="h-full w-full text-white">
         <Menubar>
           <MenubarMenu>
@@ -218,12 +373,23 @@ function App() {
             <MenubarTrigger>File</MenubarTrigger>
             <MenubarContent>
               <MenubarItem onClick={onLoadFile}>Load m2d</MenubarItem>
+              <MenubarItem onClick={onSaveFile}>Save m2d</MenubarItem>
               <MenubarSeparator />
-              <MenubarItem onClick={() => window.electron.exitApp()}>
-                Exit
+              <MenubarItem onClick={onSaveTab}>
+                Save File <MenubarShortcut>Ctrl + S</MenubarShortcut>
               </MenubarItem>
+              <MenubarSeparator />
+              <MenubarItem onClick={onExit}>Exit</MenubarItem>
             </MenubarContent>
           </MenubarMenu>
+          {/* <MenubarMenu>
+            <MenubarTrigger>Editor</MenubarTrigger>
+            <MenubarSub>
+              <MenubarSubTrigger>
+
+              </MenubarSubTrigger>
+            </MenubarSub>
+          </MenubarMenu> */}
           <MenubarMenu>
             <MenubarTrigger>About</MenubarTrigger>
             <MenubarContent>
@@ -268,6 +434,7 @@ function App() {
                   }}
                 >
                   <Tree
+                    ref={treeRef}
                     data={treeData}
                     onSelect={handleNodeSelect}
                     openByDefault={false}

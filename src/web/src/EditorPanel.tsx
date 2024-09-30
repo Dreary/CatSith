@@ -1,10 +1,15 @@
+import ConfirmationDialog from "@/web/components/confirmation-dialog";
+import { useToast } from "@/web/hooks/use-toast";
+import { isImage, isXml } from "@/web/lib/utils";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor } from "monaco-editor";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppState } from "./AppState";
-import { isImage, isXml } from "@/web/lib/utils";
 
 export const EditorPanel = () => {
+  const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
+  const { toast } = useToast();
+
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
   const {
     openedTabs,
@@ -30,14 +35,137 @@ export const EditorPanel = () => {
 
   const handleEditorChange = useCallback(
     (value: string, event: editor.IModelContentChangedEvent) => {
-      currentSelectedTab.changed = true;
-      currentSelectedTab.value = value;
+      const updatedTab = { ...currentSelectedTab, changed: true, value };
+      setOpenedTabs((prevTabs) =>
+        prevTabs.map((tab) =>
+          tab.index === currentSelectedTab.index ? updatedTab : tab,
+        ),
+      );
+      setCurrentSelectedTab(updatedTab);
     },
     [currentSelectedTab],
   );
 
+  const checkIfCurrentTabChanged = (index: number) => {
+    if (!openedTabs[index].changed) {
+      removeOpenFile(index);
+      return;
+    }
+
+    setConfirmIndex(index);
+  };
+
+  const handleCancelClose = () => {
+    setConfirmIndex(null);
+  };
+
+  const handleConfirmClose = () => {
+    if (confirmIndex === null) {
+      return;
+    }
+
+    setConfirmIndex(null);
+    removeOpenFile(confirmIndex);
+  };
+
+  const handleSaveShortcut = useCallback(
+    async (event: KeyboardEvent) => {
+      if (!(event.ctrlKey && event.key === "s")) {
+        return;
+      }
+      event.preventDefault();
+
+      if (!currentSelectedTab) {
+        console.error("No tab selected");
+        return;
+      }
+
+      if (!currentSelectedTab.changed) {
+        console.error("No changes to save");
+        return;
+      }
+
+      if (isXml(currentSelectedTab.name)) {
+        const result = await window.electron.saveXmlPackFileEntry(
+          currentSelectedTab.index,
+          currentSelectedTab.value as string,
+        );
+
+        if (result[0]) {
+          setOpenedTabs((prevTabs) =>
+            prevTabs.map((tab) =>
+              tab.index === currentSelectedTab.index
+                ? { ...tab, changed: false }
+                : tab,
+            ),
+          );
+          toast({
+            title: "File saved",
+            duration: 2000,
+          });
+        } else {
+          toast({
+            title: "Error saving file",
+            description: result[1],
+            duration: 5000,
+          });
+        }
+
+        return;
+      }
+
+      if (isImage(currentSelectedTab.name)) {
+        const result = await window.electron.saveDataPackFileEntry(
+          currentSelectedTab.index,
+          currentSelectedTab.value as Buffer,
+        );
+
+        if (result[0]) {
+          setOpenedTabs((prevTabs) =>
+            prevTabs.map((tab) =>
+              tab.index === currentSelectedTab.index
+                ? { ...tab, changed: false }
+                : tab,
+            ),
+          );
+          toast({
+            title: `${currentSelectedTab.name.split("/").pop()} saved`,
+            duration: 2000,
+          });
+        } else {
+          toast({
+            title: "Error saving file",
+            description: result[1],
+            duration: 5000,
+          });
+        }
+
+        return;
+      }
+    },
+    [currentSelectedTab],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleSaveShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleSaveShortcut);
+    };
+  }, [handleSaveShortcut]);
+
   return (
     <div className="relative h-full w-full">
+      {confirmIndex !== null && openedTabs[confirmIndex] && (
+        <ConfirmationDialog
+          isConfirmDialogOpen={confirmIndex !== null}
+          onCancel={handleCancelClose}
+          onConfirm={handleConfirmClose}
+          onOpenChange={() => setConfirmIndex(null)}
+          title={`Are you sure you want to close ${openedTabs[confirmIndex].name.split("/").pop()} ?`}
+          description="You have unsaved changes. Closing will discard these changes."
+        />
+      )}
+
       {/* vs-code styled tab bar with the name, onClick to switch tabs and a close button. Middle click to close */}
       {openedTabs.length > 0 && (
         <div className="flex flex-row flex-wrap bg-gray-800 text-white">
@@ -60,14 +188,15 @@ export const EditorPanel = () => {
                     return;
                   }
                   e.preventDefault();
-                  removeOpenFile(index);
+
+                  checkIfCurrentTabChanged(index);
                 }}
               >
                 <div className="flex-grow text-sm">{fileName}</div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeOpenFile(index);
+                    checkIfCurrentTabChanged(index);
                   }}
                 >
                   &times;
@@ -80,11 +209,12 @@ export const EditorPanel = () => {
       )}
       {!!currentSelectedTab && isXml(currentSelectedTab.name) && (
         <Editor
+          key={currentSelectedTab.index}
           className={`h-full w-full`}
           theme="vs-dark"
           path={currentSelectedTab?.name}
           defaultLanguage="xml"
-          defaultValue={currentSelectedTab?.value as string}
+          value={currentSelectedTab?.value as string}
           onMount={handleEditorDidMount}
           onChange={handleEditorChange}
         />

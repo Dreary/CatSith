@@ -18,10 +18,32 @@ ipcMain.handle("show-open-dialog", async (event, options) => {
   return await dialog.showOpenDialog(options);
 });
 
-ipcMain.handle("reader-m2d", async (event, filePath) => {
+ipcMain.handle("show-save-dialog", async (event, options) => {
+  return await dialog.showSaveDialog(options);
+});
+
+ipcMain.handle("open-m2d", async (event, filePath) => {
   const reader = new M2dReader(filePath);
   m2dReader = reader;
   return reader.files;
+});
+
+ipcMain.handle("save-m2d", async (event, filePath: string) => {
+  try {
+    // Note: the writer creates a copy of the read buffer & file array. Might eat a lot of memory
+    const writer = M2dWriter.fromReader(m2dReader);
+
+    if (filePath !== writer.filePath) {
+      writer.filePath = filePath;
+    }
+
+    const time = Date.now();
+    writer.save();
+    return [true, `${Date.now() - time}ms`];
+  } catch (error) {
+    logger.error(error);
+    return [false, error.message];
+  }
 });
 
 ipcMain.handle(
@@ -31,9 +53,17 @@ ipcMain.handle(
       throw new Error("M2D reader not initialized");
     }
 
-    return m2dReader
-      .getBytes(m2dReader.files[packFileEntryIndex - 1])
-      .getBuffer();
+    const packEntry = m2dReader.files[packFileEntryIndex - 1];
+    if (!packEntry) {
+      throw new Error("Pack file entry not found");
+    }
+    let data;
+    if (packEntry.changed) {
+      data = packEntry.data;
+    } else {
+      data = m2dReader.getBytes(packEntry);
+    }
+    return data.getBuffer();
   },
 );
 
@@ -45,7 +75,16 @@ ipcMain.handle(
     }
 
     try {
-      const data = m2dReader.getBytes(m2dReader.files[packFileEntryIndex - 1]);
+      const packEntry = m2dReader.files[packFileEntryIndex - 1];
+      if (!packEntry) {
+        throw new Error("Pack file entry not found");
+      }
+      let data;
+      if (packEntry.changed) {
+        data = packEntry.data;
+      } else {
+        data = m2dReader.getBytes(packEntry);
+      }
 
       if (!data) {
         throw new Error("Data not found");
@@ -75,24 +114,36 @@ ipcMain.handle(
     }
 
     const xmlBytes = BinaryBuffer.fromBuffer(Buffer.from(xml, "utf-8"));
+
     packFileEntry.data = xmlBytes;
     packFileEntry.changed = true;
+
+    return [true, "Saved XML"];
   },
 );
 
-ipcMain.handle("save-m2d", async (event, filePath?: string) => {
-  try {
-    // Note: the writer creates a copy of the read buffer & file array. Might eat a lot of memory
-    const writer = M2dWriter.fromReader(m2dReader);
-
-    if (filePath !== writer.filePath) {
-      writer.filePath = filePath;
+ipcMain.handle(
+  "save-data-pack-file-entry",
+  async (event, packFileEntryIndex: number, data: Buffer) => {
+    const packFileEntry = m2dReader.files.find(
+      (entry) => entry.index === packFileEntryIndex,
+    );
+    if (!packFileEntry) {
+      return [false, "Pack file entry not found"];
     }
 
-    writer.save();
-    return [true, "Saved M2D"];
-  } catch (error) {
-    logger.error(error);
-    return [false, error.message];
+    const dataBytes = BinaryBuffer.fromBuffer(data);
+    packFileEntry.data = dataBytes;
+    packFileEntry.changed = true;
+
+    return [true, "Saved data"];
+  },
+);
+
+ipcMain.handle("has-changed-files", async (event) => {
+  if (!m2dReader) {
+    return false;
   }
+
+  return m2dReader.files.some((entry) => entry.changed);
 });
