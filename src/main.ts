@@ -1,8 +1,6 @@
+import "dotenv/config";
 import { app, BrowserWindow, shell } from "electron";
 import path from "path";
-import "dotenv/config";
-
-import logger from "electron-log/main";
 
 // #region Squirrel Installer
 import ess from "electron-squirrel-startup";
@@ -21,20 +19,23 @@ updateElectronApp();
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
-const createWindow = () => {
+const createWindow = async () => {
+  const mainWindowStateKeeper = await windowStateKeeper("main");
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     resizable: true,
-    width: 1024,
-    height: 680,
+    width: mainWindowStateKeeper.width,
+    height: mainWindowStateKeeper.height,
+    x: mainWindowStateKeeper.x,
+    y: mainWindowStateKeeper.y,
     minWidth: 1024,
     minHeight: 680,
     autoHideMenuBar: true,
-    titleBarStyle: 'hidden',
+    titleBarStyle: "hidden",
     titleBarOverlay: {
-      color: '#030711',
-      symbolColor: '#fff',
-      height: 39
+      color: "#030711",
+      symbolColor: "#fff",
+      height: 39,
     },
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -42,6 +43,8 @@ const createWindow = () => {
     },
     // icon: "./images/icon.ico",
   });
+
+  mainWindowStateKeeper.track(mainWindow);
 
   mainWindow.removeMenu();
 
@@ -89,3 +92,4 @@ app.on("activate", () => {
 // }
 
 import "./events";
+import { windowStateKeeper } from "./stateKeeper";

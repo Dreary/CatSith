@@ -5,6 +5,7 @@ import { Editor, Monaco } from "@monaco-editor/react";
 import { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppState } from "./AppState";
+import { X } from "lucide-react";
 
 export const EditorPanel = () => {
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -14,9 +15,9 @@ export const EditorPanel = () => {
   const {
     openedTabs,
     currentSelectedTab,
+    editorSettings,
     setOpenedTabs,
     setCurrentSelectedTab,
-    addOpenFile,
     removeOpenFile,
   } = useAppState();
 
@@ -199,7 +200,7 @@ export const EditorPanel = () => {
                     checkIfCurrentTabChanged(index);
                   }}
                 >
-                  &times;
+                  <X size={16} />
                 </button>
                 {tab.changed && <div className="text-xs text-red-500">*</div>}
               </div>
@@ -217,6 +218,7 @@ export const EditorPanel = () => {
           value={currentSelectedTab?.value as string}
           onMount={handleEditorDidMount}
           onChange={handleEditorChange}
+          options={editorSettings}
         />
       )}
       {!!currentSelectedTab && isImage(currentSelectedTab.name) && (

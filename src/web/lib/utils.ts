@@ -20,3 +20,11 @@ export const isTexture = (fileName: string) => {
 export const isXml = (fileName: string) => {
   return ["xml", "xblock", "flat"].includes(getExtension(fileName));
 };
+
+export const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return (...args: any[]) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};

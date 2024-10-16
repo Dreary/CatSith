@@ -24,4 +24,11 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("save-data-pack-file-entry", packFileEntryIndex, value),
 
   hasChangedFiles: () => ipcRenderer.invoke("has-changed-files"),
+
+  saveEditorSettings: (data: Record<string, any>) =>
+    ipcRenderer.invoke("save-editor-settings", data),
+  getEditorSettings: () => ipcRenderer.invoke("get-editor-settings"),
+
+  savePanelSize: (size: number) => ipcRenderer.invoke("save-panel-size", size),
+  getPanelSize: () => ipcRenderer.invoke("get-panel-size"),
 });

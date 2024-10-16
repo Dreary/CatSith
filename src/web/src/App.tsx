@@ -19,32 +19,20 @@ import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 import ImageIcon from "@/web/assets/Icons/image";
 import XmlIcon from "@/web/assets/Icons/xml";
 import ConfirmationDialog from "@/web/components/confirmation-dialog";
-import {
-  Menubar,
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarShortcut,
-  MenubarTrigger,
-} from "@/web/components/ui/menubar";
+
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/web/components/ui/resizable";
 import { useToast } from "@/web/hooks/use-toast";
-import { isImage, isXml } from "@/web/lib/utils";
+import { isXml } from "@/web/lib/utils";
 import { useAppState } from "./AppState";
 import { EditorPanel } from "./EditorPanel";
-import {
-  Breadcrumb,
-  BreadcrumbEllipsis,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@/web/components/ui/breadcrumb";
+
+import LoadingSpinner from "@/web/assets/Icons/spinner";
+import Breadcrumb from "@/web/components/breadcrumb";
+import MenuBar from "@/web/components/menubar";
 
 self.MonacoEnvironment = {
   getWorker(_, label: string) {
@@ -78,19 +66,20 @@ interface TreeDataItem {
 function App() {
   const { toast } = useToast();
 
-  const [appVersion, setAppVersion] = useState<string>("1.0.0");
-
   const [fileName, setFileName] = useState<string>("");
   const [packFileEntries, setPackFileEntries] = useState<PackFileEntry[]>([]);
   const [treeData, setTreeData] = useState<TreeDataItem[]>([]);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const [panelSize, setPanelSize] = useState<number>(40);
+
   const {
     addOpenFile,
     closeAllTabs,
     currentSelectedTab,
-    setOpenedTabs,
     openedTabs,
     setCurrentSelectedTab,
   } = useAppState();
@@ -104,8 +93,8 @@ function App() {
 
   useEffect(() => {
     (async () => {
-      const version = await window.electron.getAppVersion();
-      setAppVersion(version);
+      const panelSize = await window.electron.getPanelSize();
+      setPanelSize(panelSize);
     })();
   }, []);
 
@@ -165,10 +154,13 @@ function App() {
       return;
     }
 
+    setLoading(true);
+
     setFileName(loadFile.filePaths[0]);
     const packFiles = await window.electron.openM2d(loadFile.filePaths[0]);
 
     updateState(packFiles);
+    setLoading(false);
   }
 
   const onLoadFile = async () => {
@@ -199,13 +191,21 @@ function App() {
       return;
     }
 
+    const savingToast = toast({
+      title: "Saving file...",
+      description: <LoadingSpinner size={16} />,
+    });
+
     const filePath = savePath.filePath;
     const result = await window.electron.saveM2d(filePath);
+    savingToast.dismiss();
+
     if (!result[0]) {
       toast({
         title: "Error saving file",
         description: result[1],
         duration: 5000,
+        variant: "destructive",
       });
       return;
     }
@@ -231,103 +231,6 @@ function App() {
   // wait function
   const wait = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms));
-
-  const onSaveTab = async () => {
-    if (!currentSelectedTab) {
-      console.error("No tab selected");
-      return;
-    }
-
-    if (!currentSelectedTab.changed) {
-      console.error("No changes to save");
-      return;
-    }
-
-    if (isXml(currentSelectedTab.name)) {
-      const result = await window.electron.saveXmlPackFileEntry(
-        currentSelectedTab.index,
-        currentSelectedTab.value as string,
-      );
-
-      if (result[0]) {
-        setOpenedTabs((prevTabs) =>
-          prevTabs.map((tab) =>
-            tab.index === currentSelectedTab.index
-              ? { ...tab, changed: false }
-              : tab,
-          ),
-        );
-
-        toast({
-          title: `${currentSelectedTab.name.split("/").pop()} saved`,
-          duration: 2000,
-        });
-      } else {
-        toast({
-          title: "Error saving file",
-          description: result[1],
-          duration: 5000,
-        });
-      }
-
-      return;
-    }
-
-    if (isImage(currentSelectedTab.name)) {
-      // const result = await window.electron.saveDataPackFileEntry(
-      //   currentSelectedTab.index,
-      //   currentSelectedTab.value, //TODO: fix this
-      // );
-
-      // if (result[0]) {
-      //   setOpenedTabs((prevTabs) =>
-      //     prevTabs.map((tab) =>
-      //       tab.index === currentSelectedTab.index
-      //         ? { ...tab, changed: false }
-      //         : tab,
-      //     ),
-      //   );
-      //   toast({
-      //     title: "File saved",
-      //     duration: 2000,
-      //   });
-      // } else {
-      //   toast({
-      //     title: "Error saving file",
-      //     description: result[1],
-      //     duration: 5000,
-      //   });
-      // }
-
-      return;
-    }
-  };
-
-  const onExit = async () => {
-    const changedFiles = await window.electron.hasChangedFiles();
-    if (changedFiles) {
-      return setConfirmDialogAction(() => window.electron.exitApp);
-    }
-
-    return window.electron.exitApp();
-  };
-
-  const saveShortcut = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "s" && e.ctrlKey) {
-        e.preventDefault();
-        onSaveTab();
-      }
-    },
-    [onSaveTab],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", saveShortcut);
-    return () => {
-      window.removeEventListener("keydown", saveShortcut);
-    };
-  }, [saveShortcut]);
 
   function updateState(packFiles: PackFileEntry[]) {
     // reset state
@@ -412,52 +315,11 @@ function App() {
         onConfirm={confirmDialogAction}
       />
       <div className="h-full w-full text-white">
-        <Menubar>
-          <MenubarMenu>
-            <a
-              href="https://github.com/AngeloTadeucci/CatSith"
-              target="_blank"
-              className="mx-2"
-              draggable="false"
-            >
-              CatSith
-            </a>
-          </MenubarMenu>
-          <MenubarMenu>
-            <MenubarTrigger>File</MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem onClick={onLoadFile}>Load m2d</MenubarItem>
-              <MenubarItem onClick={onSaveFile}>Save m2d</MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem onClick={onSaveTab}>
-                Save File <MenubarShortcut>Ctrl + S</MenubarShortcut>
-              </MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem onClick={onExit}>Exit</MenubarItem>
-            </MenubarContent>
-          </MenubarMenu>
-          {/* <MenubarMenu>
-            <MenubarTrigger>Editor</MenubarTrigger>
-            <MenubarSub>
-              <MenubarSubTrigger>
-
-              </MenubarSubTrigger>
-            </MenubarSub>
-          </MenubarMenu> */}
-          <MenubarMenu>
-            <MenubarTrigger>About</MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem>v{appVersion}</MenubarItem>
-            </MenubarContent>
-          </MenubarMenu>
-          <div
-            className="h-full w-full flex-grow"
-            style={{
-              //@ts-expect-error
-              WebkitAppRegion: "drag",
-            }}
-          />
-        </Menubar>
+        <MenuBar
+          onLoadFile={onLoadFile}
+          onSaveFile={onSaveFile}
+          setConfirmDialogAction={setConfirmDialogAction}
+        />
 
         <ResizablePanelGroup
           direction="horizontal"
@@ -465,51 +327,16 @@ function App() {
             height: "calc(100% - 40px)", // 40px is the height of the menubar, but why is it hardcoded? i dont understand
           }}
         >
-          <ResizablePanel minSize={25} maxSize={70}>
-            {treeData.length > 0 ? (
+          <ResizablePanel
+            minSize={25}
+            maxSize={70}
+            defaultSize={panelSize}
+            onResize={async (e) => await window.electron.savePanelSize(e)}
+          >
+            {treeData.length > 0 && !loading && (
               <div className="ml-2 flex h-full flex-col pt-2">
                 <div className="pb-2 pr-2">
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      {fileName.split("\\").map((part, index, arr) => {
-                        // show first two parts and last two parts, between them show ellipsis
-                        if (arr.length < 4) {
-                          return (
-                            <>
-                              <BreadcrumbItem key={`item-${index}`}>
-                                <BreadcrumbLink>{part}</BreadcrumbLink>
-                              </BreadcrumbItem>
-                              {index < arr.length - 1 && (
-                                <BreadcrumbSeparator
-                                  key={`separator-${index}`}
-                                />
-                              )}
-                            </>
-                          );
-                        } else if (index < 2 || index > arr.length - 3) {
-                          return (
-                            <>
-                              <BreadcrumbItem key={`item-${index}`}>
-                                <BreadcrumbLink>{part}</BreadcrumbLink>
-                              </BreadcrumbItem>
-                              {index < arr.length - 1 && (
-                                <BreadcrumbSeparator
-                                  key={`separator-${index}`}
-                                />
-                              )}
-                            </>
-                          );
-                        } else if (index === 2) {
-                          return (
-                            <>
-                              <BreadcrumbEllipsis key={`item-${index}`} />
-                              <BreadcrumbSeparator key={`separator-${index}`} />
-                            </>
-                          );
-                        }
-                      })}
-                    </BreadcrumbList>
-                  </Breadcrumb>
+                  <Breadcrumb fileName={fileName} />
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 transform text-gray-400" />
                     <Input
@@ -517,7 +344,7 @@ function App() {
                       placeholder="Search files..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full py-2 pl-8 pr-4"
+                      className="w-full py-2 pl-10 pr-4"
                     />
                   </div>
                 </div>
@@ -576,9 +403,15 @@ function App() {
                   </Tree>
                 </div>
               </div>
-            ) : (
+            )}
+            {treeData.length === 0 && !loading && (
               <div className="flex h-full items-center justify-center text-gray-500">
                 No M2d loaded
+              </div>
+            )}
+            {loading && (
+              <div className="flex h-full items-center justify-center text-gray-500">
+                <LoadingSpinner size={36} />
               </div>
             )}
           </ResizablePanel>

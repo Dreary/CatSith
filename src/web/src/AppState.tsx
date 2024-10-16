@@ -1,8 +1,10 @@
+import { editor } from "monaco-editor";
 import {
   createContext,
   ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useState,
 } from "react";
 
@@ -13,14 +15,19 @@ export interface FileTab {
   changed: boolean;
 }
 
+export interface EditorSettings
+  extends editor.IStandaloneEditorConstructionOptions {}
+
 export interface AppStateType {
   openedTabs: FileTab[];
   currentSelectedTab: FileTab;
+  editorSettings: EditorSettings;
   setOpenedTabs: React.Dispatch<React.SetStateAction<FileTab[]>>;
   setCurrentSelectedTab: React.Dispatch<React.SetStateAction<FileTab>>;
   addOpenFile: (file: FileTab) => void;
   removeOpenFile: (index: number) => void;
   closeAllTabs: () => void;
+  setEditorSettings: React.Dispatch<React.SetStateAction<EditorSettings>>;
 }
 
 // Create the context
@@ -31,6 +38,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [openedTabs, setOpenedTabs] = useState<FileTab[]>([]);
   const [currentSelectedTab, setCurrentSelectedTab] = useState<FileTab>(null);
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>({
+    minimap: {
+      enabled: true,
+    },
+    wordWrap: "on",
+  });
 
   const addOpenFile = (file: FileTab) => {
     setOpenedTabs((prev) => {
@@ -61,11 +74,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     setCurrentSelectedTab(null);
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      const settings = await window.electron.getEditorSettings();
+      setEditorSettings(settings);
+    })();
+  }, []);
+
   return (
     <AppState.Provider
       value={{
         openedTabs,
         currentSelectedTab,
+        editorSettings,
+        setEditorSettings,
         setOpenedTabs,
         setCurrentSelectedTab,
         addOpenFile,

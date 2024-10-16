@@ -1,8 +1,10 @@
 import { app, dialog, ipcMain } from "electron";
 import { M2dReader, M2dWriter } from "maple2-file";
 import { BinaryBuffer } from "maple2-file/dist/crypto/common/BinaryBuffer";
+import settings from "electron-settings";
 
 import logger from "electron-log/main";
+import { debounce } from "./web/lib/utils";
 
 let m2dReader: M2dReader;
 
@@ -147,4 +149,43 @@ ipcMain.handle("has-changed-files", async (event) => {
   }
 
   return m2dReader.files.some((entry) => entry.changed);
+});
+
+ipcMain.handle("save-editor-settings", async (event, data) => {
+  await settings.set("editorSettings", data);
+});
+
+ipcMain.handle("get-editor-settings", async (event) => {
+  const hasSettings = await settings.has("editorSettings");
+  if (!hasSettings) {
+    const defaultSettings = {
+      minimap: {
+        enabled: true,
+      },
+      wordWrap: "on",
+    };
+    await settings.set("editorSettings", defaultSettings);
+    return defaultSettings;
+  }
+
+  return await settings.get("editorSettings");
+});
+
+const saveState = debounce(async (size: number) => {
+  await settings.set("panelSize", size);
+}, 500);
+
+ipcMain.handle("save-panel-size", async (event, size) => {
+  saveState(size);
+});
+
+ipcMain.handle("get-panel-size", async (event) => {
+  const hasSettings = await settings.has("panelSize");
+  if (!hasSettings) {
+    const defaultSize = 40;
+    await settings.set("panelSize", defaultSize);
+    return defaultSize;
+  }
+
+  return await settings.get("panelSize");
 });

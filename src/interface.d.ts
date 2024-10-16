@@ -27,6 +27,12 @@ export interface IElectronAPI {
   ) => Promise<[boolean, string]>;
 
   hasChangedFiles: () => Promise<boolean>;
+
+  saveEditorSettings: (data: Record<string, any>) => Promise<void>;
+  getEditorSettings: () => Promise<Record<string, any>>;
+
+  savePanelSize: (size: number) => Promise<void>;
+  getPanelSize: () => Promise<number>;
 }
 
 declare global {
