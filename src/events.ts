@@ -163,6 +163,7 @@ ipcMain.handle("get-editor-settings", async (event) => {
         enabled: true,
       },
       wordWrap: "on",
+      usePreview: true,
     };
     await settings.set("editorSettings", defaultSettings);
     return defaultSettings;

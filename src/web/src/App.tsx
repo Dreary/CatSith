@@ -81,7 +81,9 @@ function App() {
     closeAllTabs,
     currentSelectedTab,
     openedTabs,
+    setOpenedTabs,
     setCurrentSelectedTab,
+    editorSettings,
   } = useAppState();
 
   const [confirmDialogAction, setConfirmDialogAction] =
@@ -116,23 +118,27 @@ function App() {
       // check if file is already open
       const tabExists = openedTabs.find((tab) => tab.index === fileEntry.index);
       if (tabExists) {
+        if (tabExists.isPreview && !editorSettings.usePreview) {
+          setOpenedTabs((prev) => {
+            const newTabs = [...prev];
+            newTabs[prev.findIndex((tab) => tab.index === fileEntry.index)] = {
+              ...tabExists,
+              isPreview: false,
+            };
+            return newTabs;
+          });
+          return;
+        }
         setCurrentSelectedTab(tabExists);
         return;
       }
 
+      let data: string = "";
       if (isXml(fileEntry.name)) {
-        const xml = await window.electron.getXmlPackFileEntry(fileEntry.index);
-
-        addOpenFile({
-          index: fileEntry.index,
-          name: fileEntry.name,
-          value: xml,
-          changed: false,
-        });
-        return;
+        data = await window.electron.getXmlPackFileEntry(fileEntry.index);
+      } else {
+        data = await window.electron.getDataPackFileEntry(fileEntry.index);
       }
-
-      const data = await window.electron.getDataPackFileEntry(fileEntry.index);
 
       addOpenFile({
         index: fileEntry.index,
@@ -143,6 +149,43 @@ function App() {
     },
     [packFileEntries, openedTabs],
   );
+
+  const onNodeFocus = async (node: NodeApi<TreeDataItem>): Promise<void> => {
+    if (!node.isLeaf) {
+      return;
+    }
+
+    const id = node.id;
+    if (!id) {
+      return;
+    }
+
+    const fileEntry = packFileEntries[+id.split("-")[0] - 1];
+    if (!fileEntry) {
+      console.error("File entry not found");
+      return;
+    }
+
+    const tabExists = openedTabs.find((tab) => tab.index === fileEntry.index);
+
+    if (
+      tabExists &&
+      tabExists.isPreview &&
+      currentSelectedTab.index === tabExists.index
+    ) {
+      setOpenedTabs((prev) => {
+        const newTabs = [...prev];
+        newTabs[prev.findIndex((tab) => tab.index === fileEntry.index)] = {
+          ...tabExists,
+          isPreview: false,
+        };
+        return newTabs;
+      });
+      return;
+    }
+
+    handleNodeSelect([node]);
+  };
 
   async function loadFile() {
     const loadFile = await window.electron.showOpenDialog({
@@ -370,6 +413,7 @@ function App() {
                         .toLowerCase()
                         .includes(searchQuery.toLowerCase())
                     }
+                    onFocus={onNodeFocus}
                   >
                     {({ node, style }) => {
                       const nodeIsSelected =

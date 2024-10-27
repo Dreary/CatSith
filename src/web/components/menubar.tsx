@@ -238,6 +238,32 @@ const MenuBar = ({
               </MenubarItem>
             </MenubarSubContent>
           </MenubarSub>
+          <MenubarSub>
+            <MenubarSubTrigger>Preview</MenubarSubTrigger>
+            <MenubarSubContent>
+              <MenubarItem
+                onClick={async () => {
+                  const settings = {
+                    ...editorSettings,
+                    usePreview: !editorSettings.usePreview,
+                  };
+                  setEditorSettings(settings);
+
+                  await window.electron.saveEditorSettings(settings);
+                }}
+              >
+                {editorSettings.usePreview ? (
+                  <div className="flex items-center gap-2">
+                    <Check size={16} /> Enabled
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <X size={16} /> Disabled
+                  </div>
+                )}
+              </MenubarItem>
+            </MenubarSubContent>
+          </MenubarSub>
         </MenubarContent>
       </MenubarMenu>
       <MenubarMenu>

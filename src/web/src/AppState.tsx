@@ -13,10 +13,13 @@ export interface FileTab {
   name: string;
   value: string;
   changed: boolean;
+  isPreview?: boolean;
 }
 
 export interface EditorSettings
-  extends editor.IStandaloneEditorConstructionOptions {}
+  extends editor.IStandaloneEditorConstructionOptions {
+  usePreview?: boolean;
+}
 
 export interface AppStateType {
   openedTabs: FileTab[];
@@ -43,18 +46,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       enabled: true,
     },
     wordWrap: "on",
+    usePreview: true,
   });
 
   const addOpenFile = (file: FileTab) => {
+    const newFile = { ...file, isPreview: editorSettings.usePreview };
     setOpenedTabs((prev) => {
-      if (prev.find((tab) => tab.index === file.index)) {
-        return prev;
-      }
+      const previewTabIndex = prev.findIndex((tab) => tab.isPreview);
 
-      return [...prev, file];
+      if (previewTabIndex !== -1 && editorSettings.usePreview) {
+        // Replace the existing preview tab
+        const newTabs = [...prev];
+        newTabs[previewTabIndex] = { ...file, isPreview: true };
+        return newTabs;
+      } else {
+        const matchingTab = prev.find((tab) => tab.index === file.index);
+        if (matchingTab) {
+          return prev;
+        }
+
+        return [...prev, newFile];
+      }
     });
 
-    setCurrentSelectedTab(file);
+    setCurrentSelectedTab(newFile);
   };
 
   const removeOpenFile = (index: number) => {

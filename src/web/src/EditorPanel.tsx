@@ -36,7 +36,12 @@ export const EditorPanel = () => {
 
   const handleEditorChange = useCallback(
     (value: string, event: editor.IModelContentChangedEvent) => {
-      const updatedTab = { ...currentSelectedTab, changed: true, value };
+      const updatedTab = {
+        ...currentSelectedTab,
+        changed: true,
+        value,
+        isPreview: false,
+      };
       setOpenedTabs((prevTabs) =>
         prevTabs.map((tab) =>
           tab.index === currentSelectedTab.index ? updatedTab : tab,
@@ -193,7 +198,11 @@ export const EditorPanel = () => {
                   checkIfCurrentTabChanged(index);
                 }}
               >
-                <div className="flex-grow text-sm">{fileName}</div>
+                <div
+                  className={`flex-grow text-sm ${tab.isPreview ? "italic" : ""}`}
+                >
+                  {fileName}
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
