@@ -1,11 +1,12 @@
 import ConfirmationDialog from "@/web/components/confirmation-dialog";
 import { useToast } from "@/web/hooks/use-toast";
-import { isImage, isXml } from "@/web/lib/utils";
+import { isImage, isTexture, isXml } from "@/web/lib/utils";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppState } from "./AppState";
 import { X } from "lucide-react";
+import { DDSViewer } from "@/web/src/DdsViewer";
 
 export const EditorPanel = () => {
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -159,6 +160,12 @@ export const EditorPanel = () => {
     };
   }, [handleSaveShortcut]);
 
+  const notSupported =
+    !!currentSelectedTab &&
+    !isXml(currentSelectedTab.name) &&
+    !isImage(currentSelectedTab.name) &&
+    !isTexture(currentSelectedTab.name);
+
   return (
     <div className="relative h-full w-full">
       {confirmIndex !== null && openedTabs[confirmIndex] && (
@@ -236,6 +243,14 @@ export const EditorPanel = () => {
             src={`data:image/png;base64,${currentSelectedTab.value}`}
             alt={currentSelectedTab.name}
           />
+        </div>
+      )}
+      {!!currentSelectedTab && isTexture(currentSelectedTab.name) && (
+        <DDSViewer value={currentSelectedTab.value} />
+      )}
+      {notSupported && (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="text-gray-500">File type not supported</div>
         </div>
       )}
       {!currentSelectedTab && (
