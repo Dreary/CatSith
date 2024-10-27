@@ -59,38 +59,22 @@ export const DDSViewer = ({ value }: DDSViewerProps) => {
 
   useEffect(() => {
     (async () => {
-      const startTime = performance.now();
-
       const ddsBytes = base64ToBytes(value);
-      console.log(`base64ToBytes took ${performance.now() - startTime} ms`);
 
       // Create blob from bytes
-      const blobStartTime = performance.now();
       const blob = new Blob([ddsBytes], { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
-      console.log(`Blob creation took ${performance.now() - blobStartTime} ms`);
 
       // Load the texture
       const loader = new DDSLoader();
-      const loadStartTime = performance.now();
       loader.load(url, (loadedTexture) => {
-        console.log(
-          `Texture loading took ${performance.now() - loadStartTime} ms`,
-        );
-
         // Fix texture orientation
-        const fixStartTime = performance.now();
         loadedTexture.flipY = false; // Prevents the automatic flip
         loadedTexture.repeat.set(-1, 1); // Mirror horizontally
         loadedTexture.offset.set(1, 0); // Adjust offset for mirroring
-        console.log(`Texture fix took ${performance.now() - fixStartTime} ms`);
 
         setTexture(loadedTexture);
         URL.revokeObjectURL(url);
-
-        console.log(
-          `Total useEffect execution took ${performance.now() - startTime} ms`,
-        );
       });
     })();
   }, [value]);

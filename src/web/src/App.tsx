@@ -401,7 +401,6 @@ function App() {
                   <Tree
                     ref={treeRef}
                     data={treeData}
-                    onSelect={handleNodeSelect}
                     openByDefault={false}
                     width={width}
                     height={height}
